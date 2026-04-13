@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>token-simulator — tokenomics explorer</title>
+<meta name="description" content="Interactive token-economy simulator: burn tolls, vesting, multi-stream revenue, endogenous price. By kcolbchain." />
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #13161b;
+    --panel-2: #0f1216;
+    --border: #23272f;
+    --fg: #e7e9ee;
+    --muted: #8a93a3;
+    --accent: #a78bfa;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --hot: #f87171;
+    --info: #7dd3fc;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { padding: 22px 32px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:12px; }
+  header h1 { margin:0; font-size: 20px; }
+  header h1 .dot { color: var(--accent); }
+  header p { margin:0; color: var(--muted); font-size: 13px; }
+  .layout { display:grid; grid-template-columns: 320px 1fr; min-height: calc(100vh - 70px); }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--border); max-height: 60vh; overflow-y: auto; } }
+  aside { border-right: 1px solid var(--border); background: var(--panel-2); padding: 20px; overflow-y: auto; }
+  aside h2 { margin: 0 0 10px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .group { padding: 12px 0; border-top: 1px solid var(--border); }
+  .group:first-of-type { border-top: 0; padding-top: 0; }
+  .field { display:flex; justify-content:space-between; align-items:center; padding: 6px 0; gap: 10px; }
+  .field label { color: var(--muted); font-size: 12px; flex: 1; }
+  .field input[type=range] { flex: 1; }
+  .field .val { font-family: var(--mono); font-size: 12px; width: 84px; text-align: right; color: var(--fg); }
+  .field select { background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font: inherit; width: 100%; }
+  .field input[type=number] { background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-family: var(--mono); width: 96px; text-align: right; }
+  main { padding: 24px 32px 80px 32px; overflow-x: auto; }
+  .kpis { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .kpi .l { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi .v { font-family: var(--mono); font-size: 20px; margin-top: 4px; }
+  .kpi .v.hot { color: var(--hot); }
+  .kpi .v.ok { color: var(--ok); }
+  .kpi .v.warn { color: var(--warn); }
+  .charts { display:grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+  .chart { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .chart h3 { margin: 0 0 8px 0; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; display:flex; justify-content:space-between; }
+  .chart .meta { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  svg.plot { display:block; width: 100%; height: 160px; }
+  svg.plot .axis { stroke: var(--border); }
+  svg.plot .gridline { stroke: var(--border); stroke-dasharray: 2 3; opacity: 0.4; }
+  svg.plot .series { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
+  svg.plot .series.bg { fill: currentColor; opacity: 0.10; stroke: none; }
+  svg.plot text { fill: var(--muted); font-size: 10px; font-family: var(--mono); }
+  .alerts { margin-top: 20px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; font-size: 13px; }
+  .alerts .ok { color: var(--ok); }
+  .alerts .warn { color: var(--warn); }
+  .alerts .hot { color: var(--hot); }
+  footer { padding: 20px 32px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 6px 0; }
+  details[open] summary { color: var(--fg); }
+  button.reset { background: var(--panel); color: var(--fg); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+  button.reset:hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>token-simulator<span class="dot">.</span> <span style="color:var(--muted);font-weight:400">tokenomics explorer</span></h1>
+    <p>Interactive burn-toll / vesting / revenue-stream model. Sliders rerun the sim in-browser — no backend.</p>
+  </div>
+  <div style="display:flex;gap:14px;align-items:center">
+    <a href="https://github.com/kcolbchain/token-simulator">source</a>
+    <a href="https://github.com/kcolbchain/token-simulator/issues/1">monte-carlo spec</a>
+  </div>
+</header>
+
+<div class="layout">
+  <aside>
+    <div class="group">
+      <h2>Preset</h2>
+      <div class="field">
+        <select id="preset">
+          <option value="create-protocol-v4">create-protocol-v4 (CR8 burn toll)</option>
+          <option value="generic-fee-share">generic-fee-share (no burn, baseline)</option>
+        </select>
+      </div>
+      <div class="field" style="justify-content: flex-end"><button class="reset" onclick="loadPreset(document.getElementById('preset').value)">Reset to preset</button></div>
+    </div>
+
+    <div class="group">
+      <h2>Horizon</h2>
+      <div class="field"><label>Months <span class="val" id="v_months"></span></label><input type="range" min="6" max="60" step="1" id="i_months"></div>
+    </div>
+
+    <div class="group">
+      <h2>Burn toll</h2>
+      <div class="field"><label>Enable toll</label><input type="checkbox" id="i_tollOn" /></div>
+      <div class="field"><label>Toll % (round-trip) <span class="val" id="v_toll"></span></label><input type="range" min="0" max="0.05" step="0.001" id="i_toll"></div>
+    </div>
+
+    <div class="group">
+      <h2>Revenue — month 0 volume (USD)</h2>
+      <div class="field"><label>Volume m₀ <span class="val" id="v_vol"></span></label><input type="range" min="1000" max="500000" step="1000" id="i_vol"></div>
+      <div class="field"><label>Growth rate/mo <span class="val" id="v_growth"></span></label><input type="range" min="1.00" max="1.50" step="0.01" id="i_growth"></div>
+      <div class="field"><label>Volume cap <span class="val" id="v_cap"></span></label><input type="range" min="100000" max="50000000" step="100000" id="i_cap"></div>
+      <div class="field"><label>Margin % <span class="val" id="v_margin"></span></label><input type="range" min="0.05" max="0.80" step="0.01" id="i_margin"></div>
+    </div>
+
+    <div class="group">
+      <h2>Vault</h2>
+      <div class="field"><label>Yield APY <span class="val" id="v_apy"></span></label><input type="range" min="0" max="0.20" step="0.005" id="i_apy"></div>
+      <div class="field"><label>Staker yield share <span class="val" id="v_stakerShare"></span></label><input type="range" min="0" max="1" step="0.01" id="i_stakerShare"></div>
+      <div class="field"><label>Ops cost / month <span class="val" id="v_ops"></span></label><input type="range" min="0" max="50000" step="500" id="i_ops"></div>
+    </div>
+
+    <div class="group">
+      <h2>Pool &amp; token</h2>
+      <div class="field"><label>Pool USDC @ m₀ <span class="val" id="v_poolUsdc"></span></label><input type="range" min="10000" max="2000000" step="10000" id="i_poolUsdc"></div>
+      <div class="field"><label>Initial price $ <span class="val" id="v_price0"></span></label><input type="range" min="0.0001" max="0.01" step="0.0001" id="i_price0"></div>
+      <div class="field"><label>Staked fraction <span class="val" id="v_staked"></span></label><input type="range" min="0" max="0.75" step="0.01" id="i_staked"></div>
+    </div>
+
+    <div class="group">
+      <h2>Vesting (aggregate sell-at-unlock)</h2>
+      <div class="field"><label>Sell-at-unlock % <span class="val" id="v_sell"></span></label><input type="range" min="0" max="1" step="0.01" id="i_sell"></div>
+    </div>
+  </aside>
+
+  <main>
+    <div class="kpis">
+      <div class="kpi"><div class="l">Final month volume</div><div class="v" id="k_volume">—</div></div>
+      <div class="kpi"><div class="l">Vault TVL (final)</div><div class="v" id="k_vault">—</div></div>
+      <div class="kpi"><div class="l">Staker APY (final)</div><div class="v" id="k_apy">—</div></div>
+      <div class="kpi"><div class="l">Circulating Δ</div><div class="v" id="k_circ">—</div></div>
+      <div class="kpi"><div class="l">Tokens burned (cumulative)</div><div class="v" id="k_burn">—</div></div>
+      <div class="kpi"><div class="l">Annualised burn rate</div><div class="v" id="k_burnPct">—</div></div>
+      <div class="kpi"><div class="l">Price (endogenous)</div><div class="v" id="k_price">—</div></div>
+      <div class="kpi"><div class="l">Pool depth (USDC)</div><div class="v" id="k_pool">—</div></div>
+    </div>
+
+    <div class="charts">
+      <div class="chart"><h3>Volume (monthly USD) <span class="meta" id="m_volume"></span></h3><svg class="plot" id="p_volume" style="color:var(--info)"></svg></div>
+      <div class="chart"><h3>Circulating supply <span class="meta" id="m_circ"></span></h3><svg class="plot" id="p_circ" style="color:var(--accent)"></svg></div>
+      <div class="chart"><h3>Vault TVL (USD) <span class="meta" id="m_vault"></span></h3><svg class="plot" id="p_vault" style="color:var(--ok)"></svg></div>
+      <div class="chart"><h3>Tokens burned (monthly) <span class="meta" id="m_burn"></span></h3><svg class="plot" id="p_burn" style="color:var(--hot)"></svg></div>
+      <div class="chart"><h3>Endogenous price (USD) <span class="meta" id="m_price"></span></h3><svg class="plot" id="p_price" style="color:var(--warn)"></svg></div>
+      <div class="chart"><h3>Staker APY <span class="meta" id="m_apy"></span></h3><svg class="plot" id="p_apy" style="color:var(--ok)"></svg></div>
+    </div>
+
+    <div class="alerts" id="alerts"></div>
+
+    <details style="margin-top: 18px">
+      <summary>Parameter JSON (copy to reproduce)</summary>
+      <pre id="paramJson" style="background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:12px; font-family:var(--mono); font-size:11.5px; overflow-x:auto"></pre>
+    </details>
+  </main>
+</div>
+
+<footer>
+  The dashboard runs a simplified, deterministic form of
+  <a href="https://github.com/kcolbchain/token-simulator/blob/main/token_simulator/model.py">token_simulator.model</a>
+  in the browser. The Python library is the authoritative implementation — the JS port here exists so you can
+  play with parameters without installing anything.
+  Monte-Carlo mode (distributional inputs, 10k trajectories, p5/p50/p95) is tracked in
+  <a href="https://github.com/kcolbchain/token-simulator/issues/1">#1</a> and will ship as a toggle on this
+  dashboard when the library lands it. This model is a <em>consistency checker</em>, not a price predictor —
+  if parameters are unreasonable the plots break loudly, which is the point.
+</footer>
+
+<script>
+// ================================================================= model
+// JS port of token_simulator/model.py. Kept intentionally parallel for
+// easy diffing. If you change the Python, change this and vice versa.
+function logisticGrowth(v, g, cap) {
+  if (cap <= 0) return v * g;
+  const r = Math.max(0, g - 1);
+  const headroom = Math.max(0, 1 - v / cap);
+  return v + v * r * headroom;
+}
+function amm_buy_cr8_and_burn(pu, pc, usdc_in) {
+  if (usdc_in <= 0 || pc <= 0) return [pu, pc, 0];
+  const k = pu * pc;
+  const npu = pu + usdc_in;
+  const npc = k / npu;
+  return [npu, npc, pc - npc];
+}
+function amm_sell_cr8(pu, pc, cr8_in) {
+  if (cr8_in <= 0 || pu <= 0) return [pu, pc, 0];
+  const k = pu * pc;
+  const npc = pc + cr8_in;
+  const npu = k / npc;
+  return [npu, npc, pu - npu];
+}
+
+function runSim(cfg) {
+  let pool_cr8 = cfg.pool_usdc_m0 / cfg.initial_price_usd;
+  let pool_usdc = cfg.pool_usdc_m0;
+  let circulating = cfg.total_supply * cfg.initial_circulating_pct;
+  let vault_usd = 0;
+  let volumes = cfg.revenue_streams.map(s => s.volume_usd_m0);
+  const traj = [];
+
+  for (let m = 0; m < cfg.months; m++) {
+    for (let i = 0; i < cfg.revenue_streams.length; i++) {
+      const s = cfg.revenue_streams[i];
+      volumes[i] = logisticGrowth(volumes[i], s.growth_rate, s.volume_cap_usd);
+    }
+    const total_volume = volumes.reduce((a, b) => a + b, 0);
+    const total_margin = volumes.reduce((acc, v, i) => acc + v * cfg.revenue_streams[i].margin_pct, 0);
+    const toll_flow = volumes.reduce((acc, v, i) => acc + (cfg.revenue_streams[i].touches_burn_toll ? v : 0), 0);
+
+    const burn_toll_usd = cfg.enable_burn_toll ? toll_flow * cfg.burn_toll_pct : 0;
+    const [npu, npc, cr8_burned] = amm_buy_cr8_and_burn(pool_usdc, pool_cr8, burn_toll_usd);
+    pool_usdc = npu; pool_cr8 = npc;
+    circulating -= cr8_burned;
+
+    vault_usd += total_margin;
+    const ops_paid = Math.min(vault_usd, cfg.operating_cost_usd_per_month);
+    vault_usd -= ops_paid;
+
+    const vault_yield = vault_usd * cfg.vault_yield_apy / 12;
+    const staker_yield = vault_yield * cfg.staker_yield_share;
+
+    // vesting
+    for (const b of cfg.vest_buckets) {
+      if (m < b.cliff_months) continue;
+      const into = m - b.cliff_months;
+      if (into >= b.unlock_months) continue;
+      const unlock = (b.fraction_of_supply * cfg.total_supply) / b.unlock_months;
+      circulating += unlock;
+      const cr8_sold = unlock * b.sell_at_unlock_pct;
+      const [u2, c2] = amm_sell_cr8(pool_usdc, pool_cr8, cr8_sold);
+      pool_usdc = u2; pool_cr8 = c2;
+    }
+
+    const staked = circulating * cfg.staked_fraction_of_circulating;
+    const price = pool_cr8 > 0 ? pool_usdc / pool_cr8 : Infinity;
+    const staker_apy = (staker_yield * 12) / Math.max(1, staked * price);
+
+    traj.push({
+      month: m,
+      volume_usd: total_volume,
+      margin_usd: total_margin,
+      vault_usd,
+      vault_yield_usd: vault_yield,
+      staker_yield_usd: staker_yield,
+      burn_toll_usd,
+      tokens_burned: cr8_burned,
+      circulating_supply: circulating,
+      staked_supply: staked,
+      price_usd: price,
+      pool_usdc, pool_cr8,
+      staker_apy,
+    });
+
+    if (circulating <= 0 || pool_cr8 <= 0 || !Number.isFinite(price)) break;
+  }
+  return traj;
+}
+
+// ================================================================= presets
+const PRESETS = {
+  "create-protocol-v4": () => ({
+    total_supply: 11_100_000_000,
+    initial_circulating_pct: 0.045,
+    initial_price_usd: 0.0009,
+    pool_usdc_m0: 100_000,
+    burn_toll_pct: 0.01,
+    enable_burn_toll: true,
+    vault_yield_apy: 0.05,
+    staker_yield_share: 0.60,
+    treasury_yield_share: 0.40,
+    operating_cost_usd_per_month: 5_000,
+    staked_fraction_of_circulating: 0.25,
+    months: 24,
+    revenue_streams: [
+      { name: "Agent payments (CR8-USD)", volume_usd_m0: 5_000, growth_rate: 1.25, volume_cap_usd: 5_000_000, margin_pct: 0.35, touches_burn_toll: true },
+    ],
+    vest_buckets: [
+      { name: "Community", fraction_of_supply: 0.40, cliff_months: 3, unlock_months: 36, sell_at_unlock_pct: 0.40 },
+      { name: "Team",      fraction_of_supply: 0.20, cliff_months: 6, unlock_months: 36, sell_at_unlock_pct: 0.30 },
+      { name: "Treasury",  fraction_of_supply: 0.15, cliff_months: 0, unlock_months: 48, sell_at_unlock_pct: 0.10 },
+      { name: "Liquidity", fraction_of_supply: 0.11, cliff_months: 0, unlock_months: 1,  sell_at_unlock_pct: 0.00 },
+      { name: "Legacy",    fraction_of_supply: 0.10, cliff_months: 0, unlock_months: 12, sell_at_unlock_pct: 0.65 },
+      { name: "Friends",   fraction_of_supply: 0.04, cliff_months: 6, unlock_months: 12, sell_at_unlock_pct: 0.50 },
+    ],
+  }),
+  "generic-fee-share": () => {
+    const c = PRESETS["create-protocol-v4"]();
+    c.enable_burn_toll = false;
+    c.staker_yield_share = 0.70;
+    c.treasury_yield_share = 0.30;
+    return c;
+  },
+};
+
+// ================================================================= ui
+let cfg = PRESETS["create-protocol-v4"]();
+
+const BIND = [
+  // [input id, cfg path, formatter]
+  ["i_months",      "months",                          v => v + " mo"],
+  ["i_tollOn",      "enable_burn_toll",                v => v ? "on" : "off"],
+  ["i_toll",        "burn_toll_pct",                   v => (v * 100).toFixed(2) + "%"],
+  ["i_vol",         ["revenue_streams", 0, "volume_usd_m0"], v => "$" + fmtUsd(v)],
+  ["i_growth",      ["revenue_streams", 0, "growth_rate"],   v => (v * 100 - 100).toFixed(1) + "%/mo"],
+  ["i_cap",         ["revenue_streams", 0, "volume_cap_usd"], v => "$" + fmtUsd(v)],
+  ["i_margin",      ["revenue_streams", 0, "margin_pct"],    v => (v * 100).toFixed(1) + "%"],
+  ["i_apy",         "vault_yield_apy",                 v => (v * 100).toFixed(1) + "%"],
+  ["i_stakerShare", "staker_yield_share",              v => (v * 100).toFixed(0) + "% staker"],
+  ["i_ops",         "operating_cost_usd_per_month",    v => "$" + fmtUsd(v) + "/mo"],
+  ["i_poolUsdc",    "pool_usdc_m0",                    v => "$" + fmtUsd(v)],
+  ["i_price0",      "initial_price_usd",               v => "$" + v.toFixed(4)],
+  ["i_staked",      "staked_fraction_of_circulating",  v => (v * 100).toFixed(0) + "%"],
+  ["i_sell",        "__sell_agg",                      v => (v * 100).toFixed(0) + "%"], // pseudo — applied below
+];
+
+function getByPath(obj, path) {
+  if (typeof path === "string") return obj[path];
+  let cur = obj;
+  for (const k of path) cur = cur[k];
+  return cur;
+}
+function setByPath(obj, path, val) {
+  if (typeof path === "string") { obj[path] = val; return; }
+  let cur = obj;
+  for (let i = 0; i < path.length - 1; i++) cur = cur[path[i]];
+  cur[path[path.length - 1]] = val;
+}
+
+function applyBindingsFromCfg() {
+  for (const [id, path] of BIND) {
+    const el = document.getElementById(id);
+    if (el.type === "checkbox") {
+      el.checked = !!getByPath(cfg, path);
+    } else if (path === "__sell_agg") {
+      // aggregate display: mean of per-bucket sell rates weighted by supply
+      const w = cfg.vest_buckets.reduce((a, b) => a + b.fraction_of_supply, 0) || 1;
+      const agg = cfg.vest_buckets.reduce((a, b) => a + b.sell_at_unlock_pct * b.fraction_of_supply, 0) / w;
+      el.value = agg;
+    } else {
+      el.value = getByPath(cfg, path);
+    }
+    updateLabel(id);
+  }
+  staleTaint = true;
+}
+
+function wireBindings() {
+  for (const [id, path, fmt] of BIND) {
+    const el = document.getElementById(id);
+    const handler = () => {
+      if (el.type === "checkbox") {
+        setByPath(cfg, path, el.checked);
+      } else if (path === "__sell_agg") {
+        // scale every bucket's sell rate so the weighted mean matches the slider
+        const target = parseFloat(el.value);
+        const w = cfg.vest_buckets.reduce((a, b) => a + b.fraction_of_supply, 0) || 1;
+        const current = cfg.vest_buckets.reduce((a, b) => a + b.sell_at_unlock_pct * b.fraction_of_supply, 0) / w;
+        if (current > 0) {
+          const ratio = target / current;
+          for (const b of cfg.vest_buckets) b.sell_at_unlock_pct = Math.min(1, b.sell_at_unlock_pct * ratio);
+        } else {
+          for (const b of cfg.vest_buckets) b.sell_at_unlock_pct = target;
+        }
+      } else {
+        setByPath(cfg, path, parseFloat(el.value));
+      }
+      updateLabel(id);
+      scheduleRun();
+    };
+    el.addEventListener("input", handler);
+    el.addEventListener("change", handler);
+  }
+}
+
+function updateLabel(id) {
+  const [ , path, fmt] = BIND.find(x => x[0] === id);
+  const el = document.getElementById(id);
+  const vEl = document.getElementById("v_" + id.slice(2));
+  if (!vEl) return;
+  let raw;
+  if (el.type === "checkbox") raw = el.checked;
+  else raw = parseFloat(el.value);
+  vEl.textContent = fmt ? fmt(raw) : String(raw);
+}
+
+// ================================================================= plots
+
+function plotSeries(svgId, ys, opts = {}) {
+  const svg = document.getElementById(svgId);
+  const w = svg.clientWidth || 380;
+  const h = svg.clientHeight || 160;
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  const pad = { l: 36, r: 6, t: 8, b: 18 };
+  const xs = ys.map((_, i) => i);
+  const min = Math.min(0, ...ys);
+  const max = Math.max(...ys, 1e-9);
+  const span = (max - min) || 1;
+  const xScale = i => pad.l + (i / Math.max(1, xs.length - 1)) * (w - pad.l - pad.r);
+  const yScale = v => pad.t + (1 - (v - min) / span) * (h - pad.t - pad.b);
+
+  const d = ys.map((v, i) => `${i === 0 ? "M" : "L"} ${xScale(i).toFixed(1)} ${yScale(v).toFixed(1)}`).join(" ");
+  const bg = `${d} L ${xScale(ys.length - 1).toFixed(1)} ${yScale(min).toFixed(1)} L ${xScale(0).toFixed(1)} ${yScale(min).toFixed(1)} Z`;
+
+  const gridlines = [0.25, 0.5, 0.75].map(p => {
+    const y = pad.t + p * (h - pad.t - pad.b);
+    return `<line class="gridline" x1="${pad.l}" y1="${y}" x2="${w - pad.r}" y2="${y}" />`;
+  }).join("");
+
+  const xTicks = [0, Math.floor(xs.length / 2), xs.length - 1].map(i => `
+    <text x="${xScale(i)}" y="${h - 4}" text-anchor="middle">m${i}</text>
+  `).join("");
+  const yTicks = [
+    `<text x="${pad.l - 4}" y="${yScale(max) + 3}" text-anchor="end">${opts.fmt ? opts.fmt(max) : fmtShort(max)}</text>`,
+    `<text x="${pad.l - 4}" y="${yScale(min) + 3}" text-anchor="end">${opts.fmt ? opts.fmt(min) : fmtShort(min)}</text>`,
+  ].join("");
+
+  svg.innerHTML = `
+    ${gridlines}
+    <path class="series bg" d="${bg}" />
+    <path class="series" d="${d}" stroke="currentColor" />
+    <line class="axis" x1="${pad.l}" y1="${h - pad.b}" x2="${w - pad.r}" y2="${h - pad.b}" />
+    <line class="axis" x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${h - pad.b}" />
+    ${xTicks}
+    ${yTicks}
+  `;
+}
+
+// ================================================================= fmt
+function fmtShort(v) {
+  if (!Number.isFinite(v)) return "∞";
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toFixed(2) + "B";
+  if (a >= 1e6) return (v / 1e6).toFixed(2) + "M";
+  if (a >= 1e3) return (v / 1e3).toFixed(1) + "K";
+  if (a >= 1)   return v.toFixed(2);
+  if (a >= 0.001) return v.toFixed(4);
+  return v.toExponential(2);
+}
+function fmtUsd(v) { return fmtShort(v); }
+function fmtPct(v) { return (v * 100).toFixed(1) + "%"; }
+
+// ================================================================= run/update
+let staleTaint = true;
+let pending = 0;
+function scheduleRun() {
+  staleTaint = true;
+  clearTimeout(pending);
+  pending = setTimeout(recompute, 50);
+}
+
+function recompute() {
+  const traj = runSim(cfg);
+  const last = traj[traj.length - 1];
+  const first = traj[0];
+
+  // KPIs
+  document.getElementById("k_volume").textContent = "$" + fmtUsd(last.volume_usd);
+  document.getElementById("k_vault").textContent = "$" + fmtUsd(last.vault_usd);
+  document.getElementById("k_apy").textContent = fmtPct(last.staker_apy);
+  const circDelta = last.circulating_supply - first.circulating_supply;
+  const circEl = document.getElementById("k_circ");
+  circEl.textContent = (circDelta >= 0 ? "+" : "") + fmtShort(circDelta);
+  circEl.className = "v " + (circDelta < 0 ? "ok" : "warn");
+  const totalBurn = traj.reduce((a, s) => a + s.tokens_burned, 0);
+  document.getElementById("k_burn").textContent = fmtShort(totalBurn);
+  const annualBurn = totalBurn * (12 / traj.length);
+  const burnPct = annualBurn / Math.max(1, first.circulating_supply) * 100;
+  const burnEl = document.getElementById("k_burnPct");
+  burnEl.textContent = burnPct.toFixed(2) + "%/yr";
+  burnEl.className = "v " + (burnPct > 10 ? "hot" : burnPct > 3 ? "warn" : "ok");
+  document.getElementById("k_price").textContent = "$" + (Number.isFinite(last.price_usd) ? last.price_usd.toFixed(6) : "∞");
+  document.getElementById("k_pool").textContent = "$" + fmtUsd(last.pool_usdc);
+
+  // plots
+  plotSeries("p_volume", traj.map(s => s.volume_usd), { fmt: v => "$" + fmtShort(v) });
+  plotSeries("p_circ",   traj.map(s => s.circulating_supply));
+  plotSeries("p_vault",  traj.map(s => s.vault_usd), { fmt: v => "$" + fmtShort(v) });
+  plotSeries("p_burn",   traj.map(s => s.tokens_burned));
+  plotSeries("p_price",  traj.map(s => s.price_usd),  { fmt: v => "$" + v.toFixed(4) });
+  plotSeries("p_apy",    traj.map(s => s.staker_apy * 100), { fmt: v => v.toFixed(1) + "%" });
+
+  // alerts
+  const alerts = [];
+  if (burnPct > 10) alerts.push(["hot", `Annualised burn ${burnPct.toFixed(1)}%/yr — unsustainable. Either lower the toll, cap volume, or raise initial price / pool depth.`]);
+  else if (burnPct > 3) alerts.push(["warn", `Annualised burn ${burnPct.toFixed(1)}%/yr is aggressive — flag to governance for a toll-reduction trigger.`]);
+  else if (cfg.enable_burn_toll && totalBurn < first.circulating_supply * 0.005) alerts.push(["warn", `Burn rate is <0.5%/yr over the horizon — the toll mechanism is not materially shrinking supply at this volume.`]);
+  if (last.pool_usdc < cfg.pool_usdc_m0 * 0.5) alerts.push(["hot", `Pool USDC halved — vesting sell pressure is overwhelming burn-toll buys. Pool liquidity is structurally weak at these settings.`]);
+  if (last.vault_usd <= 0 && cfg.operating_cost_usd_per_month > 0) alerts.push(["hot", `Vault ran dry — ops cost exceeds margin accumulation. Check volume / margin assumptions.`]);
+  if (last.staker_apy > 1.0) alerts.push(["warn", `Staker APY > 100% — suspicious. Usually means staked_fraction is tiny or vault is abnormally large relative to FDV.`]);
+  if (alerts.length === 0) alerts.push(["ok", "No consistency alerts. Parameters produce a sensible trajectory at this horizon."]);
+  document.getElementById("alerts").innerHTML = alerts.map(([lvl, msg]) => `<div class="${lvl}">● ${msg}</div>`).join("");
+
+  // param json
+  document.getElementById("paramJson").textContent = JSON.stringify(cfg, null, 2);
+
+  staleTaint = false;
+}
+
+// ================================================================= boot
+function loadPreset(name) {
+  cfg = PRESETS[name]();
+  applyBindingsFromCfg();
+  scheduleRun();
+}
+
+document.getElementById("preset").addEventListener("change", e => loadPreset(e.target.value));
+wireBindings();
+loadPreset("create-protocol-v4");
+window.addEventListener("resize", () => scheduleRun());
+</script>
+</body>
+</html>

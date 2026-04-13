@@ -1,0 +1,2 @@
+[console_scripts]
+token-simulator = token_simulator.cli:main

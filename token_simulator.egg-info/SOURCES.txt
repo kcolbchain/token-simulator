@@ -1,0 +1,14 @@
+LICENSE
+README.md
+pyproject.toml
+tests/test_model.py
+token_simulator/__init__.py
+token_simulator/cli.py
+token_simulator/model.py
+token_simulator/presets.py
+token_simulator.egg-info/PKG-INFO
+token_simulator.egg-info/SOURCES.txt
+token_simulator.egg-info/dependency_links.txt
+token_simulator.egg-info/entry_points.txt
+token_simulator.egg-info/requires.txt
+token_simulator.egg-info/top_level.txt
