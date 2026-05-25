@@ -1,4 +1,5 @@
 # token-simulator
+[![repo](https://img.shields.io/badge/repo-token-simulator-blue)](https://github.com/kcolbchain/token-simulator)
 
 Model token economies: burn tolls, staking yields, vesting, liquidity pools,
 multi-stream revenue. Python reference implementation + zero-build browser
