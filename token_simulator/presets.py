@@ -71,6 +71,50 @@ def generic_fee_share() -> SimConfig:
     return cfg
 
 
+@_register("standard-dao")
+def standard_dao() -> SimConfig:
+    """Standard DAO token with vesting, staking yield, and governance rewards."""
+    return SimConfig(
+        total_supply=1_000_000_000,
+        initial_circulating_pct=0.12,
+        initial_price_usd=0.05,
+        pool_usdc_m0=500_000.0,
+        burn_toll_pct=0.0,
+        enable_burn_toll=False,
+        vault_yield_apy=0.12,
+        staker_yield_share=0.75,
+        treasury_yield_share=0.25,
+        operating_cost_usd_per_month=15_000.0,
+        staked_fraction_of_circulating=0.40,
+        months=36,
+        revenue_streams=[
+            RevenueStream(
+                name="Protocol fees",
+                volume_usd_m0=75_000.0,
+                growth_rate=1.12,
+                volume_cap_usd=2_500_000.0,
+                margin_pct=0.30,
+                touches_burn_toll=False,
+            ),
+            RevenueStream(
+                name="Governance participation bonus",
+                volume_usd_m0=10_000.0,
+                growth_rate=1.08,
+                volume_cap_usd=250_000.0,
+                margin_pct=1.00,
+                touches_burn_toll=False,
+            ),
+        ],
+        vest_buckets=[
+            VestBucket("Community treasury", fraction_of_supply=0.40, cliff_months=0, unlock_months=48, sell_at_unlock_pct=0.10),
+            VestBucket("Team", fraction_of_supply=0.20, cliff_months=12, unlock_months=36, sell_at_unlock_pct=0.15),
+            VestBucket("Investors", fraction_of_supply=0.15, cliff_months=6, unlock_months=24, sell_at_unlock_pct=0.25),
+            VestBucket("DAO rewards", fraction_of_supply=0.15, cliff_months=0, unlock_months=36, sell_at_unlock_pct=0.05),
+            VestBucket("Liquidity", fraction_of_supply=0.10, cliff_months=0, unlock_months=1, sell_at_unlock_pct=0.00),
+        ],
+    )
+
+
 def load(name: str) -> SimConfig:
     if name not in PRESETS:
         raise KeyError(f"unknown preset: {name!r}. known: {sorted(PRESETS)}")
