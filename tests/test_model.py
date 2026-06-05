@@ -79,3 +79,18 @@ def test_circulating_never_negative_under_bear_case():
     # even in the blow-up case, the simulator must stop cleanly.
     assert all(s.circulating_supply >= 0 for s in traj)
     assert traj[-1].price_usd > 0
+
+
+def test_standard_dao_preset_loads_and_models_governance_mechanics():
+    cfg = presets.load("standard-dao")
+    assert cfg.total_supply == 1_000_000_000
+    assert cfg.vault_yield_apy > 0
+    assert cfg.staked_fraction_of_circulating > 0
+    assert any("Team" in b.name for b in cfg.vest_buckets)
+    assert any("Investors" in b.name for b in cfg.vest_buckets)
+    assert any("Governance participation bonus" == s.name for s in cfg.revenue_streams)
+
+    traj = run(cfg)
+    assert len(traj) == cfg.months
+    assert traj[-1].circulating_supply > traj[0].circulating_supply
+    assert traj[-1].staker_yield_usd > 0

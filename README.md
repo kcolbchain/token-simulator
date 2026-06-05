@@ -83,10 +83,11 @@ p5/p50/p95 reporting) is tracked in
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `create-protocol-v4`     | CR8 burn-toll + CR8-USD (see `cr8-token-design-v4.md` / `cr8-simulation-parameters.md` in internal docs)                  |
 | `generic-fee-share`      | Vanilla fee-share token, no burn, 70/30 revenue split — baseline to compare burn-toll against                             |
+| `standard-dao`            | Standard DAO token with team/investor vesting, staking yield, and governance participation bonus mechanics                 |
 
-Add a preset: drop a YAML file under `presets/`, register it in
-`token_simulator/presets.py`, and it appears in both the CLI and the
-dashboard dropdown.
+Add a preset by registering it in `token_simulator/presets.py` (or by
+adding loader support for external YAML presets). Registered presets appear
+in the CLI list and can be run with `token-simulator run --preset <name>`.
 
 ## License
 
