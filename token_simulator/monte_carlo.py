@@ -8,11 +8,11 @@ independent trajectories and returns aggregated statistics.
 from __future__ import annotations
 
 import random
-from dataclasses import asdict, is_dataclass
-from typing import Any, List, Optional
+from dataclasses import asdict, fields, is_dataclass
+from typing import Any, List, Optional, get_args, get_origin, get_type_hints
 
 from . import distributions as dists
-from .model import SimConfig, run
+from .model import RevenueStream, SimConfig, VestBucket, run
 
 MC_DEFAULT_TRIALS = 10_000
 
@@ -118,12 +118,26 @@ def _dataclass_to_dict(obj: Any) -> dict:
 
 
 def _dict_to_config(d: dict) -> SimConfig:
-    """Convert a flat dict back to a SimConfig (lossy — only scalar fields)."""
+    """Convert a flat dict back to a SimConfig, rehydrating nested dataclass lists."""
+    field_types = get_type_hints(SimConfig)
     cfg = SimConfig()
     for key, value in d.items():
-        if hasattr(cfg, key):
-            setattr(cfg, key, value)
+        if not hasattr(cfg, key):
+            continue
+        item_cls = _list_item_dataclass(field_types.get(key))
+        if item_cls and isinstance(value, list):
+            value = [item_cls(**v) if isinstance(v, dict) else v for v in value]
+        setattr(cfg, key, value)
     return cfg
+
+
+def _list_item_dataclass(type_hint: Any) -> Optional[type]:
+    """Return the dataclass element type for ``List[Foo]`` style hints, else None."""
+    if get_origin(type_hint) is list:
+        args = get_args(type_hint)
+        if args and is_dataclass(args[0]):
+            return args[0]
+    return None
 
 
 def mc_run(
