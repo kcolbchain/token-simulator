@@ -118,12 +118,40 @@ def _dataclass_to_dict(obj: Any) -> dict:
 
 
 def _dict_to_config(d: dict) -> SimConfig:
-    """Convert a flat dict back to a SimConfig (lossy — only scalar fields)."""
+    """Convert a flat dict back to a SimConfig.
+
+    Handles nested dataclass lists (RevenueStream, VestBucket) that
+    were flattened by ``_dataclass_to_dict``.
+    """
     cfg = SimConfig()
     for key, value in d.items():
-        if hasattr(cfg, key):
+        if not hasattr(cfg, key):
+            continue
+        orig = getattr(cfg, key)
+        if isinstance(orig, list) and orig and is_dataclass(orig[0]):
+            # Reconstruct list of dataclass items.
+            cls = type(orig[0])
+            setattr(cfg, key, [_dict_to_dataclass(cls, item) for item in value])
+        elif isinstance(orig, dict) and value and isinstance(value, dict):
+            # Nested dict → dataclass.
+            setattr(cfg, key, _dict_to_dataclass(type(orig), value))
+        else:
             setattr(cfg, key, value)
     return cfg
+
+
+def _dict_to_dataclass(cls: type, d: dict) -> Any:
+    """Reconstruct a dataclass instance from a flat dict."""
+    inst = cls()
+    for key, value in d.items():
+        if hasattr(inst, key):
+            orig = getattr(inst, key)
+            if isinstance(orig, list) and value and isinstance(value, list) and is_dataclass(orig[0] if orig else object()):
+                cls_item = type(orig[0])
+                setattr(inst, key, [_dict_to_dataclass(cls_item, item) for item in value])
+            else:
+                setattr(inst, key, value)
+    return inst
 
 
 def mc_run(
