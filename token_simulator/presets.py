@@ -71,6 +71,58 @@ def generic_fee_share() -> SimConfig:
     return cfg
 
 
+@_register("standard-dao")
+def standard_dao() -> SimConfig:
+    """Standard DAO token with governance incentives.
+
+    1B total supply. Initial circulating from public sale + airdrop.
+    Team (20%, 4yr linear, 1yr cliff) and investor (15%, 3yr, 6mo cliff)
+    vesting. Protocol fee-share rewards stakers for governance participation.
+    No burn toll — value accrues through fee distribution, not deflation.
+    """
+    return SimConfig(
+        total_supply=1_000_000_000,
+        initial_circulating_pct=0.125,
+        initial_price_usd=0.50,
+        pool_usdc_m0=2_000_000.0,
+        burn_toll_pct=0.0,
+        enable_burn_toll=False,
+        vault_yield_apy=0.04,
+        staker_yield_share=0.75,      # higher share = governance participation bonus
+        treasury_yield_share=0.25,
+        operating_cost_usd_per_month=25_000.0,
+        staked_fraction_of_circulating=0.35,  # higher staking = more governance activity
+        months=36,
+        revenue_streams=[
+            RevenueStream(
+                name="DEX swap fees",
+                volume_usd_m0=100_000.0,
+                growth_rate=1.15,
+                volume_cap_usd=10_000_000.0,
+                margin_pct=0.05,
+                touches_burn_toll=False,
+            ),
+            RevenueStream(
+                name="Protocol service fees",
+                volume_usd_m0=25_000.0,
+                growth_rate=1.20,
+                volume_cap_usd=2_500_000.0,
+                margin_pct=0.30,
+                touches_burn_toll=False,
+            ),
+        ],
+        vest_buckets=[
+            VestBucket("Team",              fraction_of_supply=0.20, cliff_months=12, unlock_months=48, sell_at_unlock_pct=0.30),
+            VestBucket("Investors",          fraction_of_supply=0.15, cliff_months=6,  unlock_months=36, sell_at_unlock_pct=0.40),
+            VestBucket("Treasury",           fraction_of_supply=0.25, cliff_months=0,  unlock_months=48, sell_at_unlock_pct=0.05),
+            VestBucket("Community/grants",   fraction_of_supply=0.15, cliff_months=3,  unlock_months=36, sell_at_unlock_pct=0.50),
+            VestBucket("Liquidity",          fraction_of_supply=0.10, cliff_months=0,  unlock_months=1,  sell_at_unlock_pct=0.00),
+            VestBucket("Public sale/airdrop",fraction_of_supply=0.10, cliff_months=0,  unlock_months=6,  sell_at_unlock_pct=0.60),
+            VestBucket("Advisors",           fraction_of_supply=0.05, cliff_months=12, unlock_months=36, sell_at_unlock_pct=0.30),
+        ],
+    )
+
+
 def load(name: str) -> SimConfig:
     if name not in PRESETS:
         raise KeyError(f"unknown preset: {name!r}. known: {sorted(PRESETS)}")
