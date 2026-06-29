@@ -81,6 +81,55 @@ def test_circulating_never_negative_under_bear_case():
     assert traj[-1].price_usd > 0
 
 
+def test_vesting_curve_respects_cliff_and_unlocks_full_allocation():
+    """A linear vest bucket must hold supply flat through the cliff, then
+    release exactly ``fraction_of_supply * total_supply`` over the unlock
+    window — no more, no less.
+
+    ``sell_at_unlock_pct=0`` keeps the unlocked tokens out of the AMM so the
+    only thing moving circulating supply is the vesting curve itself, which
+    is what this test isolates.
+    """
+    total_supply = 1_000_000_000.0
+    fraction = 0.20
+    cliff = 3
+    unlock = 12
+    cfg = SimConfig(
+        total_supply=total_supply,
+        initial_circulating_pct=0.10,
+        enable_burn_toll=False,
+        months=cliff + unlock + 3,  # run past the end of the unlock window
+        revenue_streams=[],         # no burn / no AMM buy pressure
+        vest_buckets=[
+            VestBucket(
+                name="Single bucket",
+                fraction_of_supply=fraction,
+                cliff_months=cliff,
+                unlock_months=unlock,
+                sell_at_unlock_pct=0.0,  # keep unlocks out of the pool
+            )
+        ],
+    )
+    traj = run(cfg)
+    start = total_supply * cfg.initial_circulating_pct
+
+    # During the cliff, nothing unlocks: circulating stays at the start value.
+    for s in traj[:cliff]:
+        assert s.circulating_supply == pytest.approx(start)
+
+    # Unlocks are linear: one slice per month, none before the cliff.
+    monthly = (fraction * total_supply) / unlock
+    after_first_unlock = traj[cliff].circulating_supply
+    assert after_first_unlock == pytest.approx(start + monthly)
+
+    # Over the full window exactly the bucket's whole allocation is released.
+    expected_total = start + fraction * total_supply
+    final = traj[-1].circulating_supply
+    assert final == pytest.approx(expected_total)
+    # And it never overshoots its allocation after the window closes.
+    assert final == pytest.approx(traj[cliff + unlock - 1].circulating_supply)
+
+
 def test_standard_dao_preset_loads_and_models_governance_mechanics():
     cfg = presets.load("standard-dao")
     assert cfg.total_supply == 1_000_000_000

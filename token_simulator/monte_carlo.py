@@ -12,9 +12,17 @@ from dataclasses import asdict, is_dataclass
 from typing import Any, List, Optional
 
 from . import distributions as dists
-from .model import SimConfig, run
+from .model import RevenueStream, SimConfig, VestBucket, run
 
 MC_DEFAULT_TRIALS = 10_000
+
+# Fields on SimConfig that hold lists of nested dataclasses. The default
+# SimConfig() has these as empty lists, so the element type cannot be
+# inferred from a default instance — it must be declared explicitly.
+_NESTED_LIST_FIELDS = {
+    "revenue_streams": RevenueStream,
+    "vest_buckets": VestBucket,
+}
 
 
 class MCTrajectory:
@@ -128,9 +136,11 @@ def _dict_to_config(d: dict) -> SimConfig:
         if not hasattr(cfg, key):
             continue
         orig = getattr(cfg, key)
-        if isinstance(orig, list) and orig and is_dataclass(orig[0]):
-            # Reconstruct list of dataclass items.
-            cls = type(orig[0])
+        if key in _NESTED_LIST_FIELDS and isinstance(value, list):
+            # Reconstruct list of dataclass items. The element type comes
+            # from the declared mapping, not from the default SimConfig()
+            # (whose lists are empty, so type inference would fail).
+            cls = _NESTED_LIST_FIELDS[key]
             setattr(cfg, key, [_dict_to_dataclass(cls, item) for item in value])
         elif isinstance(orig, dict) and value and isinstance(value, dict):
             # Nested dict → dataclass.
@@ -141,17 +151,16 @@ def _dict_to_config(d: dict) -> SimConfig:
 
 
 def _dict_to_dataclass(cls: type, d: dict) -> Any:
-    """Reconstruct a dataclass instance from a flat dict."""
-    inst = cls()
-    for key, value in d.items():
-        if hasattr(inst, key):
-            orig = getattr(inst, key)
-            if isinstance(orig, list) and value and isinstance(value, list) and is_dataclass(orig[0] if orig else object()):
-                cls_item = type(orig[0])
-                setattr(inst, key, [_dict_to_dataclass(cls_item, item) for item in value])
-            else:
-                setattr(inst, key, value)
-    return inst
+    """Reconstruct a dataclass instance from a flat dict.
+
+    Constructs the instance directly from the dict's matching fields so
+    that dataclasses with required positional fields (e.g. ``RevenueStream``,
+    ``VestBucket``) are built correctly. Keys not present on the dataclass
+    are ignored.
+    """
+    fields = getattr(cls, "__dataclass_fields__", {})
+    kwargs = {key: value for key, value in d.items() if key in fields}
+    return cls(**kwargs)
 
 
 def mc_run(
